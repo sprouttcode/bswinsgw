@@ -1,7 +1,7 @@
 {
-  "name": "GiveawayNotifier",
-  "description": "Notifica push se vinci un giveaway",
-  "author": "sproutt",
-  "main": "index.js",
-  "hash": "1"
+    "name": "GiveawayWinNotifier",
+    "description": "Notifiche automatiche per giveaway vinti",
+    "version": "1.0.0",
+    "authors": ["YourName"],
+    "main": "index.js"
 }
