@@ -1,7 +1,12 @@
 {
-    "name": "GiveawayWinNotifier",
-    "description": "Notifiche automatiche per giveaway vinti",
-    "version": "1.0.0",
-    "authors": ["YourName"],
+    "name": "BSWinsGW",
+    "description": "Notifiche giveaway vinti - Brawl Stars & Multi-Game",
+    "version": "1.3.0",
+    "authors": [
+        {
+            "name": "sproutt",
+            "id": "0"
+        }
+    ],
     "main": "index.js"
 }
