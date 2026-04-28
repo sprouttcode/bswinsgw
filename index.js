@@ -1,245 +1,389 @@
 /**
- * GIVEAWAY WIN NOTIFIER - NTFY VERSION
- * Notifica SOLO quando vinci effettivamente un giveaway
+ * BSWinsGW - Brawl Stars & Multi-Game Giveaway Win Notifier
+ * Versione Mobile per Revenge Discord Client
  * 
- * SETUP:
- * 1. Installa app Ntfy sul telefono
- * 2. Crea un topic (es: "brawl-wins-2024")
- * 3. Sostituisci NTFY_TOPIC sotto con il tuo topic
- * 4. Carica questo plugin in Revenge
+ * Creato da: sproutt
+ * Versione: 1.2.0
  */
 
-const NTFY_TOPIC = 'bsenrihgiveawayswins'; // CAMBIA QUESTO!
-const NTFY_SERVER = 'https://ntfy.sh'; // Puoi anche self-hostare
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURAZIONE - MODIFICA QUESTI VALORI
+// ═══════════════════════════════════════════════════════════════
 
-module.exports = {
-    name: 'GiveawayWinNotifier',
-    description: 'Notifica push quando vinci un giveaway - Versione Completa',
-    author: 'BrawlStars Helper',
-    version: '2.0',
+const CONFIG = {
+    // Il tuo Webhook Discord
+    WEBHOOK_URL: "https://discord.com/api/webhooks/1498700349354021037/Ysrj6Z-nI1fImWzLLO4AXZnM0fb2Zd1Jl1KJZlztKXDQ8KzXEYLsXquuMdLy5CDOhm1T",
+    
+    // Il tuo topic Ntfy
+    NTFY_TOPIC: "bsenrihgiveawayswins",
+    
+    // Abilita/disabilita notifiche
+    USE_WEBHOOK: true,
+    USE_NTFY: true,
+    
+    // Soglia di confidenza (30-100)
+    CONFIDENCE_THRESHOLD: 50
+};
 
-    // Configurazione
-    config: {
-        // Keywords che indicano VITTORIA
-        winKeywords: [
-            // Italiano
-            'hai vinto', 'congratulazioni', 'vincitore', 'sei il vincitore',
-            'vinto il giveaway', 'winner è', 'vinto:', 'premio a',
-            'rivendica il premio', 'ritira il premio', 'contatta per',
-            'dm per ritirare', 'dm me', 'hai ottenuto',
-            
-            // Inglese
-            'you won', 'you win', 'you\'re the winner', 'you are the winner',
-            'congratulations', 'congrats', 'winner is', 'won the giveaway',
-            'claim your prize', 'claim your reward', 'dm to claim',
-            'dm me to claim', 'you\'ve won', 'you have won',
-            'winner:', 'winners:', 'won:', 'prize goes to',
-            
-            // Emoji patterns comuni
-            '🎉', '🎊', '🏆', '👑', '✨'
-        ],
-        
-        // Frasi che ESCLUDONO la vittoria (falsi positivi)
-        excludeKeywords: [
-            // Italiano
-            'non hai vinto', 'non sei il vincitore', 'prossima volta',
-            'riprova', 'better luck', 'sfortunatamente',
-            'partecipa al prossimo', 'non è tra i vincitori',
-            'non risulti vincitore', 'nessun vincitore',
-            
-            // Inglese
-            'didn\'t win', 'did not win', 'not the winner', 'not a winner',
-            'better luck next time', 'try again', 'no winner',
-            'unfortunately', 'sorry', 'failed to win',
-            'not selected', 'weren\'t selected', 'wasn\'t selected',
-            
-            // Announcement di inizio giveaway (non vittoria)
-            'giveaway starting', 'new giveaway', 'react to enter',
-            'click to enter', 'partecipa con', 'entra nel giveaway'
-        ],
-        
-        // Server/canali da IGNORARE (opzionale)
-        ignoredGuilds: [
-            // Aggiungi ID server da ignorare, es: '123456789'
-        ],
-        
-        // Minimo di parole richieste per considerare vittoria
-        minMessageLength: 10,
-        
-        // Richiedi che il messaggio contenga sia menzione CHE keyword
-        requireBothMentionAndKeyword: true
-    },
+// ═══════════════════════════════════════════════════════════════
+// KEYWORDS MULTILINGUA
+// ═══════════════════════════════════════════════════════════════
 
-    // Statistiche
-    stats: {
-        totalMentions: 0,
-        possibleWins: 0,
-        notificationsSent: 0,
-        falsePositivesBlocked: 0
-    },
+const WIN_KEYWORDS = {
+    italian: [
+        "hai vinto", "congratulazioni! hai vinto", "sei il vincitore",
+        "premio vinto", "giveaway vinto", "sei stato estratto",
+        "ritira il premio", "rivendica il premio", "dm per il premio",
+        "gemme vinte", "brawl pass vinto"
+    ],
+    english: [
+        "you won", "you've won", "you have won", "congratulations! you won",
+        "you are the winner", "prize won", "claim your prize",
+        "you have been selected", "winner:", "has won", "giveaway won",
+        "won gems", "brawl pass won"
+    ],
+    german: [
+        "du hast gewonnen", "herzlichen glückwunsch", "du bist der gewinner",
+        "preis gewonnen", "ausgewählt worden", "gewinner:"
+    ],
+    french: [
+        "tu as gagné", "vous avez gagné", "félicitations",
+        "tu es le gagnant", "prix gagné", "réclame ton prix"
+    ],
+    spanish: [
+        "has ganado", "ganaste", "felicidades! ganaste",
+        "eres el ganador", "premio ganado", "reclama tu premio"
+    ]
+};
 
-    start() {
-        console.log('[GiveawayWinNotifier] 🚀 Plugin avviato!');
-        console.log('[GiveawayWinNotifier] 📱 Topic Ntfy:', NTFY_TOPIC);
+const GIVEAWAY_BOTS = [
+    "giveawaybot", "giveaway bot", "santa", "dyno", "mee6",
+    "carl-bot", "carlbot", "tatsumaki", "gaway", "wick",
+    "arcane", "dank memer", "gleam", "lottery", "raffle"
+];
+
+const BRAWL_STARS_KEYWORDS = [
+    "brawl stars", "brawlstars", "gems", "gemme",
+    "brawl pass", "brawlpass", "skin", "brawler", "supercell"
+];
+
+// ═══════════════════════════════════════════════════════════════
+// VARIABILI GLOBALI
+// ═══════════════════════════════════════════════════════════════
+
+let currentUser = null;
+let messageHandler = null;
+
+// ═══════════════════════════════════════════════════════════════
+// FUNZIONI HELPER
+// ═══════════════════════════════════════════════════════════════
+
+function log(...args) {
+    console.log("[BSWinsGW]", ...args);
+}
+
+function getAllKeywords() {
+    return [
+        ...WIN_KEYWORDS.italian,
+        ...WIN_KEYWORDS.english,
+        ...WIN_KEYWORDS.german,
+        ...WIN_KEYWORDS.french,
+        ...WIN_KEYWORDS.spanish
+    ];
+}
+
+function containsWinKeyword(text) {
+    const lower = text.toLowerCase();
+    return getAllKeywords().some(kw => lower.includes(kw.toLowerCase()));
+}
+
+function isGiveawayBot(username) {
+    const lower = username.toLowerCase();
+    return GIVEAWAY_BOTS.some(bot => lower.includes(bot));
+}
+
+function isBrawlStars(text) {
+    const lower = text.toLowerCase();
+    return BRAWL_STARS_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+function isMentioned(message) {
+    if (!currentUser) return false;
+    
+    // Menzione diretta
+    if (message.mentions && message.mentions.some(u => u.id === currentUser.id)) {
+        return true;
+    }
+    
+    // @everyone/@here
+    if (message.mention_everyone) return true;
+    
+    return false;
+}
+
+function hasUsername(text) {
+    if (!currentUser) return false;
+    const lower = text.toLowerCase();
+    return lower.includes(currentUser.username.toLowerCase());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALISI MESSAGGIO
+// ═══════════════════════════════════════════════════════════════
+
+function analyzeMessage(message) {
+    try {
+        // Ignora messaggi propri
+        if (currentUser && message.author.id === currentUser.id) return;
         
-        this.listener = async (msg) => {
-            try {
-                // Ignora messaggi bot (opzionale - rimuovi se vuoi anche notifiche da bot)
-                // if (msg.author?.bot) return;
-                
-                const currentUser = revenge.api.user.getCurrentUser();
-                
-                // Controlla se sei menzionato
-                const isMentioned = msg.mentions?.some(u => u.id === currentUser.id) || 
-                                  msg.content?.includes(`<@${currentUser.id}>`) ||
-                                  msg.content?.includes(`<@!${currentUser.id}>`);
-                
-                if (!isMentioned) return;
-                
-                this.stats.totalMentions++;
-                
-                // Ignora server nella blacklist
-                if (this.config.ignoredGuilds.includes(msg.guild_id)) {
-                    console.log('[GiveawayWinNotifier] ⏭️ Server ignorato');
-                    return;
-                }
-                
-                const content = msg.content?.toLowerCase() || '';
-                
-                // Verifica lunghezza minima
-                if (content.length < this.config.minMessageLength) {
-                    console.log('[GiveawayWinNotifier] ⏭️ Messaggio troppo corto');
-                    return;
-                }
-                
-                // FASE 1: Controlla ESCLUSIONI (frasi negative)
-                const hasExcludedPhrase = this.config.excludeKeywords.some(keyword => 
-                    content.includes(keyword.toLowerCase())
-                );
-                
-                if (hasExcludedPhrase) {
-                    this.stats.falsePositivesBlocked++;
-                    console.log('[GiveawayWinNotifier] ❌ Falso positivo bloccato (frase negativa)');
-                    return;
-                }
-                
-                // FASE 2: Controlla KEYWORDS DI VITTORIA
-                const hasWinKeyword = this.config.winKeywords.some(keyword => {
-                    if (keyword.length === 1 || keyword.length === 2) {
-                        // Per emoji, controlla presenza esatta
-                        return msg.content?.includes(keyword);
-                    }
-                    return content.includes(keyword.toLowerCase());
-                });
-                
-                if (!hasWinKeyword) {
-                    console.log('[GiveawayWinNotifier] ⏭️ Nessuna keyword di vittoria trovata');
-                    return;
-                }
-                
-                // FASE 3: VERIFICA AGGIUNTIVA - Pattern di vittoria
-                const winPatterns = [
-                    // La menzione è seguita/preceduta da "winner" o simili
-                    new RegExp(`winner.*<@!?${currentUser.id}>|<@!?${currentUser.id}>.*winner`, 'i'),
-                    new RegExp(`won.*<@!?${currentUser.id}>|<@!?${currentUser.id}>.*won`, 'i'),
-                    new RegExp(`congratulations.*<@!?${currentUser.id}>|<@!?${currentUser.id}>.*congratulations`, 'i'),
-                    new RegExp(`vinto.*<@!?${currentUser.id}>|<@!?${currentUser.id}>.*vinto`, 'i'),
-                ];
-                
-                const hasStrongPattern = winPatterns.some(pattern => 
-                    pattern.test(msg.content || '')
-                );
-                
-                // FASE 4: DECISIONE FINALE
-                let confidenceLevel = 'MEDIA';
-                
-                if (hasStrongPattern) {
-                    confidenceLevel = 'ALTA';
-                } else if (hasWinKeyword && isMentioned) {
-                    confidenceLevel = 'MEDIA';
-                } else {
-                    console.log('[GiveawayWinNotifier] ⚠️ Confidenza troppo bassa');
-                    return;
-                }
-                
-                // VITTORIA CONFERMATA! Invia notifica
-                this.stats.possibleWins++;
-                await this.sendNotification(msg, confidenceLevel);
-                
-            } catch (error) {
-                console.error('[GiveawayWinNotifier] ❌ Errore:', error);
-            }
+        const content = message.content;
+        const authorName = message.author.username;
+        
+        // Sistema di punteggio
+        let confidence = 0;
+        const reasons = [];
+        
+        // Check 1: Menzione (+30)
+        if (isMentioned(message)) {
+            confidence += 30;
+            reasons.push("Menzione (+30)");
+        }
+        
+        // Check 2: Bot giveaway (+25)
+        if (isGiveawayBot(authorName)) {
+            confidence += 25;
+            reasons.push("Bot giveaway (+25)");
+        }
+        
+        // Check 3: Keyword vittoria (+35)
+        if (containsWinKeyword(content)) {
+            confidence += 35;
+            reasons.push("Keyword vittoria (+35)");
+        }
+        
+        // Check 4: Username (+20)
+        if (hasUsername(content)) {
+            confidence += 20;
+            reasons.push("Username presente (+20)");
+        }
+        
+        // Check 5: Brawl Stars (+15 bonus)
+        const isBrawl = isBrawlStars(content);
+        if (isBrawl) {
+            confidence += 15;
+            reasons.push("Brawl Stars (+15)");
+        }
+        
+        // Decisione
+        const threshold = CONFIG.CONFIDENCE_THRESHOLD;
+        let isWin = confidence >= threshold;
+        
+        // Match perfetto (override)
+        if (isGiveawayBot(authorName) && containsWinKeyword(content) && 
+            (isMentioned(message) || hasUsername(content))) {
+            isWin = true;
+            confidence = Math.max(confidence, 95);
+            reasons.push("⭐ MATCH PERFETTO");
+        }
+        
+        if (isWin) {
+            log("🎉 VITTORIA RILEVATA!");
+            log(`Confidenza: ${confidence}%`);
+            log(`Motivi:`, reasons);
+            handleWin(message, confidence, reasons, isBrawl);
+        }
+        
+    } catch (error) {
+        console.error("[BSWinsGW] Errore analisi:", error);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GESTIONE VITTORIA
+// ═══════════════════════════════════════════════════════════════
+
+async function handleWin(message, confidence, reasons, isBrawlStars) {
+    const data = {
+        serverName: message.guild_id ? "Server Discord" : "DM",
+        serverId: message.guild_id || "DM",
+        channelId: message.channel_id,
+        messageId: message.id,
+        content: message.content,
+        link: `https://discord.com/channels/${message.guild_id || "@me"}/${message.channel_id}/${message.id}`,
+        botName: message.author.username,
+        timestamp: new Date().toLocaleString("it-IT"),
+        confidence: confidence,
+        reasons: reasons,
+        isBrawlStars: isBrawlStars,
+        gameType: isBrawlStars ? "Brawl Stars 🎮" : "Generico 🎁"
+    };
+    
+    // Invia webhook
+    if (CONFIG.USE_WEBHOOK && CONFIG.WEBHOOK_URL && !CONFIG.WEBHOOK_URL.includes("YOUR_WEBHOOK")) {
+        await sendWebhook(data);
+    }
+    
+    // Invia ntfy
+    if (CONFIG.USE_NTFY && CONFIG.NTFY_TOPIC && CONFIG.NTFY_TOPIC !== "your-ntfy-topic-here") {
+        await sendNtfy(data);
+    }
+    
+    log("✅ Notifiche inviate!");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INVIO WEBHOOK
+// ═══════════════════════════════════════════════════════════════
+
+async function sendWebhook(data) {
+    try {
+        const color = data.isBrawlStars ? 0x9C27B0 : 0x00FF00;
+        const title = data.isBrawlStars ? 
+            "🎮 HAI VINTO UN GIVEAWAY BRAWL STARS!" : 
+            "🎉 HAI VINTO UN GIVEAWAY!";
+        
+        const embed = {
+            title: title,
+            description: data.content.substring(0, 1500),
+            color: color,
+            fields: [
+                {name: "🏢 Server", value: data.serverName, inline: true},
+                {name: "🤖 Bot", value: data.botName, inline: true},
+                {name: "📊 Confidenza", value: `${data.confidence}%`, inline: true},
+                {name: "🎯 Tipo", value: data.gameType, inline: true},
+                {name: "⏰ Orario", value: data.timestamp, inline: true},
+                {name: "🔗 Link", value: `[Vai al messaggio](${data.link})`, inline: false}
+            ],
+            footer: {text: "BSWinsGW Mobile v1.2.0 by sproutt"},
+            timestamp: new Date().toISOString()
         };
         
-        revenge.api.messages.addListener('MESSAGE_CREATE', this.listener);
-    },
-
-    async sendNotification(msg, confidence) {
-        try {
-            const currentUser = revenge.api.user.getCurrentUser();
-            
-            // Costruisci messaggio
-            const serverName = msg.guild?.name || 'Messaggio Diretto';
-            const channelName = msg.channel?.name || 'DM';
-            const messageUrl = `https://discord.com/channels/${msg.guild_id || '@me'}/${msg.channel_id}/${msg.id}`;
-            const messagePreview = msg.content.substring(0, 200);
-            
-            // Emoji basato su confidenza
-            const confidenceEmoji = {
-                'ALTA': '🏆',
-                'MEDIA': '🎉',
-                'BASSA': '⚠️'
-            };
-            
-            const notificationBody = `
-${confidenceEmoji[confidence]} GIVEAWAY VINTO! (Confidenza: ${confidence})
-
-📍 Server: ${serverName}
-💬 Canale: ${channelName}
-👤 Utente: ${msg.author?.username || 'Unknown'}
-
-📝 Messaggio:
-${messagePreview}${msg.content.length > 200 ? '...' : ''}
-
-🔗 Link: ${messageUrl}
-
-⏰ ${new Date().toLocaleString('it-IT')}
-            `.trim();
-            
-            // Invia a Ntfy
-            const response = await fetch(`${NTFY_SERVER}/${NTFY_TOPIC}`, {
-                method: 'POST',
-                headers: {
-                    'Title': `${confidenceEmoji[confidence]} HAI VINTO UN GIVEAWAY!`,
-                    'Priority': confidence === 'ALTA' ? 'urgent' : 'high',
-                    'Tags': confidence === 'ALTA' ? 'trophy,tada,rotating_light' : 'tada,gift',
-                    'Click': messageUrl,
-                    'Actions': `view, Apri Discord, ${messageUrl}, clear=true`
-                },
-                body: notificationBody
+        if (data.reasons.length > 0) {
+            embed.fields.push({
+                name: "📋 Motivi",
+                value: data.reasons.map(r => `• ${r}`).join("\n"),
+                inline: false
             });
+        }
+        
+        const response = await fetch(CONFIG.WEBHOOK_URL, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                username: "BSWinsGW Mobile 🎮",
+                embeds: [embed]
+            })
+        });
+        
+        if (response.ok) {
+            log("✅ Webhook inviato!");
+        } else {
+            console.error("[BSWinsGW] Errore webhook:", response.status);
+        }
+    } catch (error) {
+        console.error("[BSWinsGW] Errore sendWebhook:", error);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INVIO NTFY
+// ═══════════════════════════════════════════════════════════════
+
+async function sendNtfy(data) {
+    try {
+        const emoji = data.isBrawlStars ? "🎮" : "🎉";
+        const title = data.isBrawlStars ? 
+            "🎮 Brawl Stars Vinto!" : 
+            "🎉 Giveaway Vinto!";
+        
+        const message = `${emoji} HAI VINTO!\n\n` +
+            `Server: ${data.serverName}\n` +
+            `Bot: ${data.botName}\n` +
+            `Tipo: ${data.gameType}\n` +
+            `Confidenza: ${data.confidence}%\n\n` +
+            `${data.content.substring(0, 250)}`;
+        
+        const response = await fetch(`https://ntfy.sh/${CONFIG.NTFY_TOPIC}`, {
+            method: "POST",
+            headers: {
+                "Title": title,
+                "Priority": "urgent",
+                "Tags": data.isBrawlStars ? "video_game,trophy" : "tada,gift",
+                "Click": data.link
+            },
+            body: message
+        });
+        
+        if (response.ok) {
+            log("✅ Ntfy inviato!");
+        } else {
+            console.error("[BSWinsGW] Errore ntfy:", response.status);
+        }
+    } catch (error) {
+        console.error("[BSWinsGW] Errore sendNtfy:", error);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PLUGIN LIFECYCLE
+// ═══════════════════════════════════════════════════════════════
+
+module.exports = {
+    onLoad: () => {
+        log("Plugin BSWinsGW caricato!");
+        log("Versione 1.2.0 - by sproutt");
+        
+        // Ottieni utente corrente (metodo può variare in Revenge)
+        try {
+            const {UserStore} = require("@vendetta/storage");
+            currentUser = UserStore.getCurrentUser?.();
             
-            if (response.ok) {
-                this.stats.notificationsSent++;
-                console.log(`[GiveawayWinNotifier] ✅ Notifica inviata! (${confidence})`);
-                console.log(`[GiveawayWinNotifier] 📊 Stats: ${this.stats.notificationsSent} notifiche, ${this.stats.falsePositivesBlocked} falsi positivi bloccati`);
+            if (currentUser) {
+                log(`👤 Monitorando per: ${currentUser.username}`);
             } else {
-                console.error('[GiveawayWinNotifier] ❌ Errore invio notifica:', await response.text());
+                log("⚠️ Impossibile ottenere utente corrente");
             }
-            
-        } catch (error) {
-            console.error('[GiveawayWinNotifier] ❌ Errore sendNotification:', error);
+        } catch (e) {
+            console.error("[BSWinsGW] Errore caricamento utente:", e);
+        }
+        
+        // Verifica configurazione
+        if (CONFIG.WEBHOOK_URL.includes("YOUR_WEBHOOK") && CONFIG.NTFY_TOPIC === "your-ntfy-topic-here") {
+            console.warn("[BSWinsGW] ⚠️ CONFIGURAZIONE MANCANTE! Modifica CONFIG in index.js");
         }
     },
 
-    stop() {
-        revenge.api.messages.removeListener('MESSAGE_CREATE', this.listener);
-        console.log('[GiveawayWinNotifier] 🛑 Plugin fermato');
-        console.log('[GiveawayWinNotifier] 📊 Statistiche finali:', this.stats);
+    onUnload: () => {
+        log("Plugin BSWinsGW scaricato!");
+        if (messageHandler) {
+            messageHandler = null;
+        }
     },
 
-    // Comando per vedere statistiche
-    getStats() {
-        return this.stats;
-    }
+    // Intercetta messaggi (sintassi può variare in base a Revenge)
+    patches: [
+        {
+            find: "MESSAGE_CREATE",
+            replacements: [
+                {
+                    match: /handleMessage\((\w+)\)/,
+                    replace: (match, msgVar) => {
+                        return `(function(msg){
+                            try {
+                                if (typeof analyzeMessage === 'function') {
+                                    analyzeMessage(msg);
+                                }
+                            } catch(e) {
+                                console.error('[BSWinsGW] Error:', e);
+                            }
+                            return ${match};
+                        })(${msgVar})`;
+                    }
+                }
+            ]
+        }
+    ]
 };
+
+// Esponi la funzione globalmente per il patch
+global.analyzeMessage = analyzeMessage;
